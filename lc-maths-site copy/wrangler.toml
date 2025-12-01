@@ -1,0 +1,14 @@
+name = "lc-maths-site-api"
+main = "backend/worker.js"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+# GOOGLE_API_KEY will go here later when we wire up Gemini.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "lc_maths_db"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+
+
