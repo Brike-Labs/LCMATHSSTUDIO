@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Admin · LC Maths Studio</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="styles/base.css" />
+    <link rel="stylesheet" href="styles/components.css" />
+  </head>
+  <body class="app app--admin">
+    <header class="site-header">
+      <div class="shell">
+        <div class="site-header__inner">
+          <div class="branding">
+            <div class="branding__logo-circle">∑</div>
+            <div class="branding__text">
+              <span class="branding__name">LC Maths Studio · Admin</span>
+              <span class="branding__tagline">Manage topics &amp; questions</span>
+            </div>
+          </div>
+          <nav class="site-nav">
+            <a href="dashboard.html" class="btn btn--ghost">Back to app</a>
+          </nav>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="section">
+        <div class="shell">
+          <div class="admin-layout">
+            <section class="card admin-panel">
+              <h2>Topics</h2>
+              <div id="admin-topics-list" class="cards-column"></div>
+              <p class="form__error" id="admin-topics-error" hidden></p>
+            </section>
+
+            <section class="card admin-panel">
+              <h2>Add topic</h2>
+              <form id="admin-topic-form" class="form">
+                <label class="form-field">
+                  <span>Title</span>
+                  <input name="title" required />
+                </label>
+                <label class="form-field">
+                  <span>Slug (no spaces)</span>
+                  <input name="slug" required />
+                </label>
+                <label class="form-field">
+                  <span>Level</span>
+                  <input name="level" placeholder="HL or OL" required />
+                </label>
+                <label class="form-field">
+                  <span>Paper</span>
+                  <input name="paper" type="number" min="1" max="2" required />
+                </label>
+                <label class="form-field">
+                  <span>Notes (HTML allowed)</span>
+                  <textarea name="notes_html" rows="4"></textarea>
+                </label>
+                <button class="btn btn--primary" type="submit">Save topic</button>
+                <p class="form__error" id="admin-topic-error" hidden></p>
+              </form>
+            </section>
+
+            <section class="card admin-panel">
+              <h2>Add question</h2>
+              <form id="admin-question-form" class="form">
+                <label class="form-field">
+                  <span>Topic</span>
+                  <select name="topic_id" id="admin-question-topic" required></select>
+                </label>
+                <label class="form-field">
+                  <span>Question text</span>
+                  <textarea name="text" rows="4" required></textarea>
+                </label>
+                <label class="form-field">
+                  <span>Marking scheme</span>
+                  <textarea name="marking_scheme" rows="4" required></textarea>
+                </label>
+                <label class="form-field">
+                  <span>Max marks</span>
+                  <input name="max_marks" type="number" min="1" required />
+                </label>
+                <label class="form-field">
+                  <span>Source (optional)</span>
+                  <input name="source_ref" />
+                </label>
+                <button class="btn btn--primary" type="submit">
+                  Save question
+                </button>
+                <p class="form__error" id="admin-question-error" hidden></p>
+              </form>
+            </section>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="scripts/main.js"></script>
+    <script src="scripts/admin.js"></script>
+  </body>
+</html>
+
+
