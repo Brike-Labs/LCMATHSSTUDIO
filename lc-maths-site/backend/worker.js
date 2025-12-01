@@ -452,22 +452,21 @@ async function handleCreateAttempt(request, env) {
     .first();
   if (!question) return json({ error: "Question not found" }, 404);
 
-  // For now, use a simple dummy marker that awards marks based on length of answer
   const mode = body.mode === "explain" ? "explain" : "mark";
   const answerText = String(body.answerText);
   const lengthScore = Math.min(answerText.length / 120, 1);
-  const marksAwarded =
+  let marksAwarded =
     mode === "mark" ? Math.round(question.max_marks * lengthScore) : null;
 
-  const feedback = {
+  let feedback = {
     scoreText:
       mode === "mark" && marksAwarded != null
         ? `${marksAwarded}/${question.max_marks}`
         : "Explanation only",
     summary:
       mode === "mark"
-        ? "This is a placeholder marking scheme. The real AI marking will consider each step of your work."
-        : "This is a placeholder explanation. The real AI will walk you through the full solution.",
+        ? "This prototype gives a rough score based on how complete your answer looks."
+        : "Here is a straightforward outline of how to approach the question.",
     steps: [
       "State what the question is asking you to find.",
       "Write down the key formula or relationship you will use.",
@@ -475,6 +474,24 @@ async function handleCreateAttempt(request, env) {
       "Check that your final answer makes sense.",
     ],
   };
+
+  const aiFeedback = await maybeRunGemini(env, {
+    mode,
+    question,
+    answerText,
+  });
+
+  if (aiFeedback) {
+    feedback = {
+      scoreText:
+        aiFeedback.marksAwarded != null
+          ? `${aiFeedback.marksAwarded}/${question.max_marks}`
+          : "Explanation only",
+      summary: aiFeedback.summary || feedback.summary,
+      steps: aiFeedback.steps?.length ? aiFeedback.steps : feedback.steps,
+    };
+    marksAwarded = aiFeedback.marksAwarded ?? marksAwarded;
+  }
 
   const feedbackJson = JSON.stringify(feedback);
 
@@ -485,6 +502,132 @@ async function handleCreateAttempt(request, env) {
     .run();
 
   return json({ ok: true, feedback });
+}
+
+async function maybeRunGemini(env, { mode, question, answerText }) {
+  const apiKey = getGeminiKey(env);
+  if (!apiKey) return null;
+
+  const prompt = buildGeminiPrompt({ mode, question, answerText });
+
+  try {
+    const resp = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent" +
+        `?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: prompt }],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 400,
+          },
+        }),
+      }
+    );
+
+    if (!resp.ok) {
+      console.warn("Gemini request failed", resp.status, await resp.text());
+      return null;
+    }
+
+    const data = await resp.json();
+    const text = extractGeminiText(data);
+    const parsed = parseGeminiFeedback(text);
+
+    if (!parsed) return null;
+
+    const marksAwarded =
+      mode === "mark"
+        ? clampMarks(parsed.marks_awarded, question.max_marks)
+        : null;
+
+    return {
+      marksAwarded,
+      summary: parsed.summary || parsed.comment,
+      steps: Array.isArray(parsed.steps)
+        ? parsed.steps.slice(0, 6).filter((s) => typeof s === "string" && s.trim())
+        : [],
+    };
+  } catch (err) {
+    console.warn("Gemini error", err);
+    return null;
+  }
+}
+
+function getGeminiKey(env) {
+  return (
+    env.GOOGLE_API_KEY ||
+    env.GEMINI_API_KEY ||
+    env.GOOGLE_GENERATIVE_LANGUAGE_API_KEY ||
+    null
+  );
+}
+
+function buildGeminiPrompt({ mode, question, answerText }) {
+  const instructions =
+    mode === "mark"
+      ? `Score the learner's answer for a Leaving Cert maths question.
+Respond with *only* a compact JSON object, no prose or markdown.
+Keys: marks_awarded (integer 0-${question.max_marks}), summary (1-2 calm sentences), steps (array of 3-6 short bullet points).
+Keep the tone factual and supportive.`
+      : `Give a short walkthrough for a Leaving Cert maths question.
+Respond with *only* a compact JSON object, no prose or markdown.
+Keys: summary (1-2 calm sentences), steps (array of 3-6 short bullet points).`;
+
+  const markingScheme = question.marking_scheme
+    ? `Marking scheme: ${question.marking_scheme}`
+    : "";
+
+  return `${instructions}
+
+Question (max ${question.max_marks} marks): ${question.text}
+${markingScheme}
+
+Learner answer:
+${answerText}`;
+}
+
+function extractGeminiText(data) {
+  const parts = data?.candidates?.[0]?.content?.parts;
+  if (!Array.isArray(parts)) return "";
+  return parts
+    .map((p) => (typeof p.text === "string" ? p.text : ""))
+    .join("\n")
+    .trim();
+}
+
+function parseGeminiFeedback(text) {
+  if (!text) return null;
+
+  const cleaned = text
+    .replace(/```json/gi, "{")
+    .replace(/```/g, "")
+    .trim();
+
+  const match = cleaned.match(/\{[\s\S]*\}/);
+  if (!match) return null;
+
+  const candidate = match[0];
+
+  try {
+    const parsed = JSON.parse(candidate.replace(/(\w+)\s*:/g, '"$1":'));
+    if (parsed && typeof parsed === "object") return parsed;
+  } catch (err) {
+    console.warn("Gemini JSON parse error", err, text);
+    return null;
+  }
+}
+
+function clampMarks(value, max) {
+  if (typeof value !== "number" || Number.isNaN(value)) return null;
+  return Math.max(0, Math.min(max, Math.round(value)));
 }
 
 async function requireAdmin(request, env) {
