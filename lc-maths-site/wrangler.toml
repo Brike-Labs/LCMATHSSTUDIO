@@ -9,6 +9,4 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "lc_maths_db"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
-
-
+database_id = ae338359-7f41-45de-9e53-617394355524
