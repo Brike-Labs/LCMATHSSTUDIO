@@ -466,8 +466,8 @@ async function handleCreateAttempt(request, env) {
         : "Explanation only",
     summary:
       mode === "mark"
-        ? "This is a placeholder marking scheme. The real AI marking will consider each step of your work."
-        : "This is a placeholder explanation. The real AI will walk you through the full solution.",
+        ? "This prototype gives a rough score based on how complete your answer looks."
+        : "Here is a straightforward outline of how to approach the question.",
     steps: [
       "State what the question is asking you to find.",
       "Write down the key formula or relationship you will use.",
