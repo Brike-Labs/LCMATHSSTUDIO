@@ -505,14 +505,15 @@ async function handleCreateAttempt(request, env) {
 }
 
 async function maybeRunGemini(env, { mode, question, answerText }) {
-  if (!env.GOOGLE_API_KEY) return null;
+  const apiKey = getGeminiKey(env);
+  if (!apiKey) return null;
 
   const prompt = buildGeminiPrompt({ mode, question, answerText });
 
   try {
     const resp = await fetch(
       "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent" +
-        `?key=${env.GOOGLE_API_KEY}`,
+        `?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -560,14 +561,25 @@ async function maybeRunGemini(env, { mode, question, answerText }) {
   }
 }
 
+function getGeminiKey(env) {
+  return (
+    env.GOOGLE_API_KEY ||
+    env.GEMINI_API_KEY ||
+    env.GOOGLE_GENERATIVE_LANGUAGE_API_KEY ||
+    null
+  );
+}
+
 function buildGeminiPrompt({ mode, question, answerText }) {
   const instructions =
     mode === "mark"
       ? `Score the learner's answer for a Leaving Cert maths question.
-Return JSON with keys: marks_awarded (integer 0-${question.max_marks}), summary (1-2 calm sentences), and steps (array of 3-6 short bullet points).
+Respond with *only* a compact JSON object, no prose or markdown.
+Keys: marks_awarded (integer 0-${question.max_marks}), summary (1-2 calm sentences), steps (array of 3-6 short bullet points).
 Keep the tone factual and supportive.`
       : `Give a short walkthrough for a Leaving Cert maths question.
-Return JSON with keys: summary (1-2 calm sentences) and steps (array of 3-6 short bullet points).`;
+Respond with *only* a compact JSON object, no prose or markdown.
+Keys: summary (1-2 calm sentences), steps (array of 3-6 short bullet points).`;
 
   const markingScheme = question.marking_scheme
     ? `Marking scheme: ${question.marking_scheme}`
@@ -593,10 +605,20 @@ function extractGeminiText(data) {
 
 function parseGeminiFeedback(text) {
   if (!text) return null;
-  const match = text.match(/\{[\s\S]*\}/);
+
+  const cleaned = text
+    .replace(/```json/gi, "{")
+    .replace(/```/g, "")
+    .trim();
+
+  const match = cleaned.match(/\{[\s\S]*\}/);
   if (!match) return null;
+
+  const candidate = match[0];
+
   try {
-    return JSON.parse(match[0]);
+    const parsed = JSON.parse(candidate.replace(/(\w+)\s*:/g, '"$1":'));
+    if (parsed && typeof parsed === "object") return parsed;
   } catch (err) {
     console.warn("Gemini JSON parse error", err, text);
     return null;
